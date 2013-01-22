@@ -45,6 +45,14 @@ __PUBLIC int ycbcr_init(ycbcr_t *ycbcr, glc_t *glc);
 __PUBLIC int ycbcr_set_scale(ycbcr_t ycbcr, double scale);
 
 /**
+ * \brief set export to TV ycbcr levels
+ * \param ycbcr ycbcr object
+ * \param levels use tv levels
+ * \return 0 on success otherwise an error code
+ */
+__PUBLIC int ycbcr_set_levels(ycbcr_t ycbcr, int levels);
+
+/**
  * \brief process data and transfer between buffers
  *
  * ycbcr process converts all BGR and BGRA frames into

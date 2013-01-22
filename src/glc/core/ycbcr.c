@@ -54,6 +54,22 @@ Y', Cb, Cr      in {0, 1, 2, ..., 255}
 #define RGB_TO_YCbCrJPEG_Cr(Rd, Gd, Bd) \
 	(128 + ((512 * (Rd) - 429 * (Gd) -  83 * (Bd)) >> 10))
 
+/*
+Some software doesn't like videos with a full [0-255] luma/chroma range
+*/
+
+#define RGB_TO_YCbCrJPEG_TV_Y(Rd, Gd, Bd) \
+	(219 * (    + ((306 * (Rd) + 601 * (Gd) + 117 * (Bd)) >> 10)) / 255 +  16)
+#define RGB_TO_YCbCrJPEG_TV_Cb(Rd, Gd, Bd) \
+	(224 * (128 - ((173 * (Rd) + 339 * (Gd) - 512 * (Bd)) >> 10)) / 255 +  16)
+#define RGB_TO_YCbCrJPEG_TV_Cr(Rd, Gd, Bd) \
+	(224 * (128 + ((512 * (Rd) - 429 * (Gd) -  83 * (Bd)) >> 10)) / 255 +  16)
+
+#define YCbCrJPEG_PC_TO_TV_Y(Y) \
+	(219 * (Y) / 255 +  16)        //    [16-235]
+#define YCbCrJPEG_PC_TO_TV_C(C) \
+	(224 * (C) / 255 +  16)        //    [16-240]
+
 struct ycbcr_video_stream_s;
 struct ycbcr_private_s;
 
@@ -87,6 +103,8 @@ struct ycbcr_s {
 	double scale;
 
 	struct ycbcr_video_stream_s *video;
+
+	int levels;
 };
 
 int ycbcr_read_callback(glc_thread_state_t *state);
@@ -104,6 +122,8 @@ void ycbcr_bgr_to_jpeg420_half(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video
 			       unsigned char *from, unsigned char *to);
 void ycbcr_bgr_to_jpeg420_scale(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
 				unsigned char *from, unsigned char *to);
+void ycbcr_pc_to_tv_levels(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video, 
+				 unsigned char *from, unsigned char *to);
 
 int ycbcr_init(ycbcr_t *ycbcr, glc_t *glc)
 {
@@ -135,6 +155,12 @@ int ycbcr_set_scale(ycbcr_t ycbcr, double scale)
 		return EINVAL;
 
 	ycbcr->scale = scale;
+	return 0;
+}
+
+int ycbcr_set_levels(ycbcr_t ycbcr, int levels)
+{
+	ycbcr->levels = levels;
 	return 0;
 }
 
@@ -276,25 +302,46 @@ void ycbcr_bgr_to_jpeg420(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
 			Gd = (from[op1 + 1] + from[op2 + 1] + from[op3 + 1] + from[op4 + 1]) >> 2;
 			Bd = (from[op1 + 0] + from[op2 + 0] + from[op3 + 0] + from[op4 + 0]) >> 2;
 
-			/* CbCr */
-			*Cb++ = RGB_TO_YCbCrJPEG_Cb(Rd, Gd, Bd);
-			*Cr++ = RGB_TO_YCbCrJPEG_Cr(Rd, Gd, Bd);
+			if (!ycbcr->levels) {
+				/* CbCr */
+				*Cb++ = RGB_TO_YCbCrJPEG_Cb(Rd, Gd, Bd);
+				*Cr++ = RGB_TO_YCbCrJPEG_Cr(Rd, Gd, Bd);
 
-			/* Y' */
-			Ypix = Yx + Yy * video->yw;
-			Y[Ypix] = RGB_TO_YCbCrJPEG_Y(from[op3 + 2],
-						     from[op3 + 1],
-						     from[op3 + 0]);
-			Y[Ypix + 1] = RGB_TO_YCbCrJPEG_Y(from[op4 + 2],
+				/* Y' */
+				Ypix = Yx + Yy * video->yw;
+				Y[Ypix] = RGB_TO_YCbCrJPEG_Y(from[op3 + 2],
+							 from[op3 + 1],
+							 from[op3 + 0]);
+				Y[Ypix + 1] = RGB_TO_YCbCrJPEG_Y(from[op4 + 2],
 							 from[op4 + 1],
 							 from[op4 + 0]);
-			Y[Ypix + video->yw] = RGB_TO_YCbCrJPEG_Y(from[op1 + 2],
-							       from[op1 + 1],
-							       from[op1 + 0]);
-			Y[Ypix + 1 + video->yw] = RGB_TO_YCbCrJPEG_Y(from[op2 + 2],
+				Y[Ypix + video->yw] = RGB_TO_YCbCrJPEG_Y(from[op1 + 2],
+								   from[op1 + 1],
+								   from[op1 + 0]);
+				Y[Ypix + 1 + video->yw] = RGB_TO_YCbCrJPEG_Y(from[op2 + 2],
 								   from[op2 + 1],
 								   from[op2 + 0]);
-			ox += video->bpp * 2;
+			} else {
+				/* CbCr */
+				*Cb++ = RGB_TO_YCbCrJPEG_TV_Cb(Rd, Gd, Bd);
+				*Cr++ = RGB_TO_YCbCrJPEG_TV_Cr(Rd, Gd, Bd);
+
+				/* Y' */
+				Ypix = Yx + Yy * video->yw;
+				Y[Ypix] = RGB_TO_YCbCrJPEG_TV_Y(from[op3 + 2],
+							 from[op3 + 1],
+							 from[op3 + 0]);
+				Y[Ypix + 1] = RGB_TO_YCbCrJPEG_TV_Y(from[op4 + 2],
+							 from[op4 + 1],
+							 from[op4 + 0]);
+				Y[Ypix + video->yw] = RGB_TO_YCbCrJPEG_TV_Y(from[op1 + 2],
+								   from[op1 + 1],
+								   from[op1 + 0]);
+				Y[Ypix + 1 + video->yw] = RGB_TO_YCbCrJPEG_TV_Y(from[op2 + 2],
+								   from[op2 + 1],
+								   from[op2 + 0]);
+				ox += video->bpp * 2;
+			}
 		}
 		ox = 0;
 		oy -= 2 * video->row;
@@ -415,6 +462,26 @@ void ycbcr_bgr_to_jpeg420_scale(ycbcr_t ycbcr, struct ycbcr_video_stream_s *vide
 #undef Bd
 }
 
+void ycbcr_pc_to_tv_levels(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
+			  unsigned char *from, unsigned char *to)
+{
+	unsigned int y, c, ysize, csize;
+	unsigned char *Y, *C;
+
+	ysize = video->yw * video->yh;
+	csize = video->cw * video->ch;
+	Y = from;
+	C = &from[ysize];
+
+	for (y = 0; y < ysize; y++) {
+		to[y] = YCbCrJPEG_PC_TO_TV_Y(Y[y]);
+	}
+
+	for (c = 0; c < csize * 2; c++) {
+		to[ysize + c] = YCbCrJPEG_PC_TO_TV_C(C[c]);
+	}
+}
+
 int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_format)
 {
 	struct ycbcr_video_stream_s *video;
@@ -422,12 +489,15 @@ int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_
 	ycbcr_get_video_stream(ycbcr, video_format->id, &video);
 	pthread_rwlock_wrlock(&video->update);
 
+	video->convert = NULL;
+
 	if (video_format->format == GLC_VIDEO_BGRA)
 		video->bpp = 4;
 	else if (video_format->format == GLC_VIDEO_BGR)
 		video->bpp = 3;
-	else {
-		video->convert = NULL;
+	else if (ycbcr->levels == 1 && video_format->format == GLC_VIDEO_YCBCR_420JPEG)
+		video->convert = &ycbcr_pc_to_tv_levels;
+	else if (!(ycbcr->levels == 1 && video_format->format == GLC_VIDEO_YCBCR_420JPEG)) {
 		pthread_rwlock_unlock(&video->update);
 		return 0;
 	}
@@ -457,7 +527,9 @@ int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_
 	video_format->width = video->yw;
 	video_format->height = video->yh;
 
-	if (video->scale == 1.0)
+	if (video->convert != NULL)
+		;
+	else if (video->scale == 1.0)
 		video->convert = &ycbcr_bgr_to_jpeg420;
 	else if (video->scale == 0.5) {
 		glc_log(ycbcr->glc, GLC_DEBUG, "ycbcr",

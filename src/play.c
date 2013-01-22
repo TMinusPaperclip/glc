@@ -61,7 +61,7 @@ struct play_s {
 	const char *export_filename_format;
 	glc_stream_id_t export_video_id;
 	glc_stream_id_t export_audio_id;
-	int img_format;
+	int img_format, tv_levels;
 
 	glc_utime_t silence_threshold;
 	const char *alsa_playback_device;
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
 		{"bmp",			1, NULL, 'b'},
 		{"png",			1, NULL, 'p'},
 		{"yuv4mpeg",		1, NULL, 'y'},
+		{"yuv4mpegTV",		1, NULL, 'Y'},
 		{"out",			1, NULL, 'o'},
 		{"fps",			1, NULL, 'f'},
 		{"resize",		1, NULL, 'r'},
@@ -128,6 +129,7 @@ int main(int argc, char *argv[])
 	play.interpolate = 1;
 	play.export_filename_format = NULL; /* user has to specify */
 	play.img_format = IMG_BMP;
+	play.tv_levels = 0;
 
 	/* global color correction */
 	play.override_color_correction = 0;
@@ -136,7 +138,7 @@ int main(int argc, char *argv[])
 	play.green_gamma = 1.0;
 	play.blue_gamma = 1.0;
 
-	while ((opt = getopt_long(argc, argv, "i:a:b:p:y:o:f:r:g:l:td:c:u:s:v:hV",
+	while ((opt = getopt_long(argc, argv, "i:a:b:p:y:Y:o:f:r:g:l:td:c:u:s:v:hV",
 				  long_options, &optind)) != -1) {
 		switch (opt) {
 		case 'i':
@@ -159,6 +161,8 @@ int main(int argc, char *argv[])
 				goto usage;
 			play.action = action_img;
 			break;
+		case 'Y':
+			play.tv_levels = 1;
 		case 'y':
 			play.export_video_id = atoi(optarg);
 			if (play.export_video_id < 1)
@@ -313,6 +317,8 @@ usage:
 	       "                             (use -o pic-%%010d.bmp f.ex.)\n"
 	       "  -p, --png=NUM            save frames from stream NUM as png files\n"
 	       "  -y, --yuv4mpeg=NUM       save video stream NUM in yuv4mpeg format\n"
+	       "  -Y, --yuv4mpegTV=NUM     same as -y but outputs TV luma/chroma range\n"
+	       "                             use this if -y increases contrast\n"
 	       "  -o, --out=FILE           write to FILE\n"
 	       "  -f, --fps=FPS            save images or video at FPS\n"
 	       "  -r, --resize=VAL         resize pictures with scale factor VAL or WxH\n"
@@ -726,6 +732,7 @@ int export_yuv4mpeg(struct play_s *play)
 		goto err;
 	if ((ret = ycbcr_init(&ycbcr, &play->glc)))
 		goto err;
+	ycbcr_set_levels(ycbcr, play->tv_levels);
 	if ((ret = scale_init(&scale, &play->glc)))
 		goto err;
 	if (play->scale_width && play->scale_height)
