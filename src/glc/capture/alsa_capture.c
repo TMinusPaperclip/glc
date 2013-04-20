@@ -171,6 +171,8 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 			return ret;
 	}
 
+    snd_pcm_reset(alsa_capture->pcm);
+
 	alsa_capture->skip_data = 0;
 	return 0;
 }
@@ -404,7 +406,6 @@ void *alsa_capture_thread(void *argptr)
 
 			/* and discard it if glc is paused */
 			if (alsa_capture->skip_data) {
-				fprintf(stderr, "snd_pcm_reset()\n");
 				snd_pcm_reset(alsa_capture->pcm);
 				continue;
 			}
