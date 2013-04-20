@@ -527,21 +527,21 @@ int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_
 	video_format->width = video->yw;
 	video_format->height = video->yh;
 
-	if (video->convert != NULL)
-		;
-	else if (video->scale == 1.0)
-		video->convert = &ycbcr_bgr_to_jpeg420;
-	else if (video->scale == 0.5) {
-		glc_log(ycbcr->glc, GLC_DEBUG, "ycbcr",
-			 "scaling to half-size (from %ux%u to %ux%u)",
-			 video->w, video->h, video->yw, video->yh);
-		video->convert = &ycbcr_bgr_to_jpeg420_half;
-	} else {
-		glc_log(ycbcr->glc, GLC_DEBUG, "ycbcr",
-			 "scaling with factor %f (from %ux%u to %ux%u)",
-			 video->scale, video->w, video->h, video->yw, video->yh);
-		video->convert = &ycbcr_bgr_to_jpeg420_scale;
-		ycbcr_generate_map(ycbcr, video);
+	if (video->convert == NULL) {
+		if (video->scale == 1.0)
+			video->convert = &ycbcr_bgr_to_jpeg420;
+		else if (video->scale == 0.5) {
+			glc_log(ycbcr->glc, GLC_DEBUG, "ycbcr",
+				 "scaling to half-size (from %ux%u to %ux%u)",
+				 video->w, video->h, video->yw, video->yh);
+			video->convert = &ycbcr_bgr_to_jpeg420_half;
+		} else {
+			glc_log(ycbcr->glc, GLC_DEBUG, "ycbcr",
+				 "scaling with factor %f (from %ux%u to %ux%u)",
+				 video->scale, video->w, video->h, video->yw, video->yh);
+			video->convert = &ycbcr_bgr_to_jpeg420_scale;
+			ycbcr_generate_map(ycbcr, video);
+		}
 	}
 
 	video->size = video->yw * video->yh + 2 * (video->cw * video->ch);
