@@ -159,7 +159,7 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 		alsa_capture->thread_running = 1;
 	}
 
-	if (alsa_capture->skip_data != 0)
+	if (alsa_capture->skip_data == 0)
 		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
 			 "device %s already started", alsa_capture->device);
 	else
